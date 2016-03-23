@@ -15,9 +15,9 @@ class Config(object):
     DATABASE_URI = ''
     ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
     SESSION_TYPE = 'memcached'
-    SECRET_KEY = '1TZCbwsA-pkNd-wvSU-IQbL-36IQj0o4GgoV'
+    SECRET_KEY = 'b0f2fa44-e523-47fe-ae6c-16769ad847c1'
     REDIS_CONF = RedisConfig(host='127.0.0.1', port=6379, db=0)
-    PASSWORD_PREFIX = "08b3db21-d120-11e4-9ttd-10ddb199c373"
+    PASSWORD_PREFIX = "e6ddea04-f40a-4bc3-8974-5f87e904e263"
     ENCRYPT_PWD_URL = None
     SERVER_IP = '0.0.0.0'
     SERVER_PORT = 4000
