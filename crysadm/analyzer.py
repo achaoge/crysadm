@@ -20,10 +20,9 @@ def __get_speed_stat_chart_data(speed_stat_data):
         speed_stat_value.append(this_data)
 
         dev_speed = speed_data.get('dev_speed')
-        pc_speed = speed_data.get('pc_speed')
 
         for i in range(0, 24):
-            this_data.get('data').append((dev_speed[i] + pc_speed[i]) / 8)
+            this_data.get('data').append(dev_speed[i] / 8)
 
     return dict(category=speed_stat_category, value=speed_stat_value)
 
@@ -47,7 +46,6 @@ def __get_history_speed_data(username):
         day_speed.append([0] * 24)
         for account in history_data.get('speed_stat'):
             day_speed.append(account.get('dev_speed'))
-            day_speed.append(account.get('pc_speed'))
         value.append(dict(name=str_date, data=[x / 8 for x in [sum(i) for i in zip(*day_speed)]]))
 
     return value
@@ -69,14 +67,13 @@ def __get_speed_comparison_data(history_data, today_data, str_updated_time):
         day_speed = list()
         for account in today_data:
             day_speed.append(account.get('dev_speed'))
-            day_speed.append(account.get('pc_speed'))
 
         total_speed = [x / 8 for x in [sum(i) for i in zip(*day_speed)]][0 - updated_time.hour:]
         value.append(dict(name='今天', data=total_speed))
 
     return dict(category=category, value=value)
 
-
+# 最近7天的收入分析
 def __seven_day_pdc(username):
     history_speed = __get_history_speed_data(username)
     today = datetime.now().date() + timedelta(days=-1)
@@ -141,7 +138,7 @@ def __seven_day_pdc(username):
     }})
     return dict(category=category, series=series)
 
-
+# 历史产量（30天）
 @app.route('/analyzer/last_30_day')
 @requires_auth
 def analyzer_last_30_day():
@@ -161,7 +158,7 @@ def analyzer_last_30_day():
 
     return Response(json.dumps(dict(value=value)), mimetype='application/json')
 
-
+# 最近7日速度对比
 @app.route('/analyzer/speed_comparison')
 @requires_auth
 def analyzer_speed_comparison():
@@ -190,7 +187,7 @@ def analyzer_speed_comparison():
 
     return Response(json.dumps(speed_comparison_data), mimetype='application/json')
 
-
+# 最近7日产量图形界面
 @app.route('/analyzer/speed_vs_income')
 @requires_auth
 def analyzer_speed_vs_income():
@@ -210,7 +207,7 @@ def analyzer_speed_vs_income():
 
     return Response(json.dumps(data), mimetype='application/json')
 
-
+# 矿机实时速度的显示时间
 @app.route('/analyzer/speed_stat_chart')
 @requires_auth
 def analyzer_speed_stat_chart():
@@ -231,7 +228,7 @@ def analyzer_speed_stat_chart():
 
     return Response(json.dumps(speed_stat_chart), mimetype='application/json')
 
-
+# 显示数据分析主界面
 @app.route('/analyzer')
 @requires_auth
 def analyzer():

@@ -7,7 +7,8 @@ import json
 import requests
 from urllib.parse import urlparse, parse_qs, unquote
 import time
-from api import ubus_cd, collect, exec_draw_cash, api_searcht_steal, api_searcht_collect, api_summary_steal, api_getaward
+from api import ubus_cd, collect, exec_draw_cash, api_sys_getEntry, api_steal_search, api_steal_collect, api_steal_summary, api_getaward
+import re
 
 # 加载矿机主页面
 @app.route('/excavators')
@@ -125,9 +126,21 @@ def getaward_id(user_id):
     account_data_key = account_key + ':data'
     account_data_value = json.loads(r_session.get(account_data_key).decode("utf-8"))
     account_data_value.get('mine_info')['td_not_in_a'] = 0
+    #check_award_income(r, account_data_value)
     r_session.set(account_data_key, json.dumps(account_data_value))
 
     return redirect(url_for('excavators'))
+
+def check_award_income(r, account_data_value):
+    crystal_pattern = re.compile('.*>([0-9]+)<.*水晶.*')
+    crystal_match = crystal_pattern.match(unquote(r.get('tip')))
+    if account_data_value.get('award_income') is None:
+        account_data_value['award_income'] = 0
+    if crystal_match:
+        print("DEBUG=====", crystal_match.group(1))
+        account_data_value['award_income'] += crystal_match.group(1)
+    print("DEBUG=====", unquote(r.get('tip')))
+    sys.stdout.flush()
 
 # 幸运转盘[all]
 @app.route('/getaward/all', methods=['POST'])
@@ -155,6 +168,7 @@ def getaward_all():
             account_data_key = account_key + ':data'
             account_data_value = json.loads(r_session.get(account_data_key).decode("utf-8"))
             account_data_value.get('mine_info')['td_not_in_a'] = 0
+            #check_award_income(r, account_data_value)
             r_session.set(account_data_key, json.dumps(account_data_value))
     if len(success_message) > 0:
         session['info_message'] = success_message
@@ -226,14 +240,19 @@ def searcht_all():
 
 # 执行进攻函数
 def check_searcht(cookies):
-    steal_info = api_searcht_steal(cookies)
-    if steal_info.get('r') != 0:
-        return steal_info
-
-    r = api_searcht_collect(cookies=cookies, searcht_id=steal_info.get('sid'))
-    api_summary_steal(cookies=cookies, searcht_id=steal_info.get('sid'))
-
-    return r
+    t = api_sys_getEntry(cookies)
+    if t.get('r') != 0:
+        return dict(r='-1', rd='Forbidden')
+    if t.get('steal_free') > 0:
+        steal_info = api_steal_search(cookies)
+        if steal_info.get('r') != 0:
+            return steal_info
+        r = api_steal_collect(cookies=cookies, searcht_id=steal_info.get('sid'))
+        if r.get('r') != 0:
+            return dict(r='-1', rd='Forbidden')
+        api_steal_summary(cookies=cookies, searcht_id=steal_info.get('sid'))
+        return r
+    return dict(r='-1', rd='体力值为零')
 
 # 用户提现[id]
 @app.route('/drawcash/<user_id>', methods=['POST'])
@@ -247,7 +266,7 @@ def drawcash_id(user_id):
     user_id = account_info.get('user_id')
 
     cookies = dict(sessionid=session_id, userid=str(user_id))
-    r = exec_draw_cash(cookies, None)
+    r = exec_draw_cash(cookies)
     if r.get('r') != 0:
         session['error_message'] = r.get('rd')
         return redirect(url_for('excavators'))
@@ -278,14 +297,14 @@ def drawcash_all():
         user_id = account_info.get('user_id')
 
         cookies = dict(sessionid=session_id, userid=str(user_id))
-        r = exec_draw_cash(cookies, None)
+        r = exec_draw_cash(cookies)
         if r.get('r') != 0:
             error_message += 'Id:%s : %s<br />' % (user_id, r.get('rd'))
         else:
             success_message += 'Id:%s : %s<br />' % (user_id, r.get('rd'))
             account_data_key = account_key + ':data'
             account_data_value = json.loads(r_session.get(account_data_key).decode("utf-8"))
-            account_data_value.get('mine_info')['td_not_in_a'] = 0
+            account_data_value.get('income')['r_can_use'] = 0
             r_session.set(account_data_key, json.dumps(account_data_value))
     if len(success_message) > 0:
         session['info_message'] = success_message

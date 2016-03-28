@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from multiprocessing import Process
 from multiprocessing.dummy import Pool as ThreadPool
 import threading
+import random
 
 conf = None
 if socket.gethostname() == 'GXMBP.local':
@@ -23,7 +24,8 @@ from api import *
 
 # 获取用户数据
 def get_data(username):
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'get_data')
+    if DEBUG_MODE:
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'get_data')
 
     start_time = datetime.now()
     try:
@@ -34,7 +36,8 @@ def get_data(username):
 
             if not account_info.get('active'): continue
 
-            print("start get_data with userID:", user_id)
+            if DEBUG_MODE:            
+                print("start get_data with userID:", user_id)
 
             session_id = account_info.get('session_id')
             user_id = account_info.get('user_id')
@@ -42,7 +45,8 @@ def get_data(username):
 
             mine_info = get_mine_info(cookies)
             if is_api_error(mine_info):
-                print('get_data:', user_id, mine_info, 'error')
+                if DEBUG_MODE:
+                    print('get_data:', user_id, mine_info, 'error')
                 return
 
             if mine_info.get('r') != 0:
@@ -74,16 +78,15 @@ def get_data(username):
             if account_data.get('updated_time') is not None:
                 last_updated_time = datetime.strptime(account_data.get('updated_time'), '%Y-%m-%d %H:%M:%S')
                 if last_updated_time.hour != datetime.now().hour:
-                    account_data['zqb_speed_stat'] = get_speed_stat('1', cookies)
-                    account_data['old_speed_stat'] = get_speed_stat('0', cookies)
+                    account_data['zqb_speed_stat'] = get_speed_stat(cookies)
             else:
-                account_data['zqb_speed_stat'] = get_speed_stat('1', cookies)
-                account_data['old_speed_stat'] = get_speed_stat('0', cookies)
+                account_data['zqb_speed_stat'] = get_speed_stat(cookies)
 
             account_data['updated_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             account_data['mine_info'] = mine_info
             account_data['device_info'] = red_zqb.get('devices')
             account_data['income'] = get_income_info(cookies)
+            account_data['produce_info'] = get_produce_stat(cookies)
 
             if is_api_error(account_data.get('income')):
                 print('get_data:', user_id, 'income', 'error')
@@ -99,14 +102,15 @@ def get_data(username):
             save_history(username)
 
         r_session.setex('user:%s:cron_queued' % username, '1', 60)
-        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), username.encode('utf-8'), 'successed')
-
+        if DEBUG_MODE:
+            print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), username.encode('utf-8'), 'successed')        
     except Exception as ex:
         print(username.encode('utf-8'), 'failed', datetime.now().strftime('%Y-%m-%d %H:%M:%S'), ex)
 
 # 保存历史数据
 def save_history(username):
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'save_history')
+    if DEBUG_MODE:
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'save_history')
     str_today = datetime.now().strftime('%Y-%m-%d')
     key = 'user_data:%s:%s' % (username, str_today)
     b_today_data = r_session.get(key)
@@ -123,6 +127,9 @@ def save_history(username):
     today_data['income'] = 0
     today_data['speed_stat'] = list()
     today_data['pdc_detail'] = []
+    today_data['giftbox_pdc'] = 0
+    today_data['produce_stat'] = [] 
+    #today_data['award_income'] = 0
 
     for user_id in r_session.smembers('accounts:%s' % username):
         # 获取账号所有数据
@@ -137,9 +144,7 @@ def save_history(username):
             continue
         today_data.get('speed_stat').append(dict(mid=data.get('privilege').get('mid'),
                                                  dev_speed=data.get('zqb_speed_stat') if data.get(
-                                                     'zqb_speed_stat') is not None else [0] * 24,
-                                                 pc_speed=data.get('old_speed_stat') if data.get(
-                                                     'old_speed_stat') is not None else [0] * 24))
+                                                     'zqb_speed_stat') is not None else [0] * 24))
         this_pdc = data.get('mine_info').get('dev_m').get('pdc')
 
         today_data['pdc'] += this_pdc
@@ -147,6 +152,10 @@ def save_history(username):
 
         today_data['balance'] += data.get('income').get('r_can_use')
         today_data['income'] += data.get('income').get('r_h_a')
+        today_data['giftbox_pdc'] += data.get('mine_info').get('td_box_pdc')
+        today_data.get('produce_stat').append(dict(mid=data.get('privilege').get('mid'), hourly_list=data.get('produce_info').get('hourly_list')))
+        #if data.get('award_income') is not None:
+        #    today_data['award_income'] += data.get('award_income')
         for device in data.get('device_info'):
             today_data['last_speed'] += int(int(device.get('dcdn_upload_speed')) / 1024)
             today_data['deploy_speed'] += int(device.get('dcdn_download_speed') / 1024)
@@ -156,7 +165,8 @@ def save_history(username):
 
 # 获取保存的历史数据
 def save_income_history(username, pdc_detail):
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), username.encode('utf-8'), 'save_income_history')
+    if DEBUG_MODE:
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), username.encode('utf-8'), 'save_income_history')
     now = datetime.now()
     key = 'user_data:%s:%s' % (username, 'income.history')
     b_income_history = r_session.get(key)
@@ -177,7 +187,9 @@ def save_income_history(username, pdc_detail):
 
 # 重新登录
 def __relogin(username, password, account_info, account_key):
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), username.encode('utf-8'), 'relogin')
+    if DEBUG_MODE:
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), username.encode('utf-8'), 'relogin')
+
     login_result = login(username, password, conf.ENCRYPT_PWD_URL)
 
     if login_result.get('errorCode') != 0:
@@ -193,11 +205,12 @@ def __relogin(username, password, account_info, account_key):
 
 # 获取在线用户数据
 def get_online_user_data():
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'get_online_user_data')
+    if DEBUG_MODE: 
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'get_online_user_data')
     if r_session.exists('api_error_info'):
         return
 
-    pool = ThreadPool(processes=5)
+    pool = ThreadPool(processes=1)
 
     pool.map(get_data, (u.decode('utf-8') for u in r_session.smembers('global:online.users')))
     pool.close()
@@ -205,7 +218,8 @@ def get_online_user_data():
 
 # 获取离线用户数据
 def get_offline_user_data():
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'get_offline_user_data')
+    if DEBUG_MODE:
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'get_offline_user_data')
     if r_session.exists('api_error_info'):
         return
 
@@ -233,7 +247,8 @@ def get_offline_user_data():
 
 # 从在线用户列表中清除离线用户
 def clear_offline_user():
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'clear_offline_user')
+    if DEBUG_MODE: 
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'clear_offline_user')
     for b_username in r_session.smembers('global:online.users'):
         username = b_username.decode('utf-8')
         if not r_session.exists('user:%s:is_online' % username):
@@ -241,7 +256,8 @@ def clear_offline_user():
 
 # 刷新选择自动任务的用户
 def select_auto_task_user():
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'select_auto_task_user')
+    if DEBUG_MODE: 
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'select_auto_task_user')
     auto_collect_accounts = []
     auto_drawcash_accounts = []
     auto_giftbox_accounts = []
@@ -265,83 +281,98 @@ def select_auto_task_user():
             if user_info.get('auto_searcht'): auto_searcht_accounts.append(cookies)
             if user_info.get('auto_getaward'): auto_getaward_accounts.append(cookies)
     r_session.delete('global:auto.collect.cookies')
-    r_session.sadd('global:auto.collect.cookies', *auto_collect_accounts)
+    if len(auto_collect_accounts) != 0:
+        r_session.sadd('global:auto.collect.cookies', *auto_collect_accounts)
     r_session.delete('global:auto.drawcash.cookies')
-    r_session.sadd('global:auto.drawcash.cookies', *auto_drawcash_accounts)
+    if len(auto_drawcash_accounts) != 0:
+        r_session.sadd('global:auto.drawcash.cookies', *auto_drawcash_accounts)
     r_session.delete('global:auto.giftbox.cookies')
-    r_session.sadd('global:auto.giftbox.cookies', *auto_giftbox_accounts)
+    if len(auto_giftbox_accounts) != 0:
+        r_session.sadd('global:auto.giftbox.cookies', *auto_giftbox_accounts)
     r_session.delete('global:auto.searcht.cookies')
-    r_session.sadd('global:auto.searcht.cookies', *auto_searcht_accounts)
+    if len(auto_searcht_accounts) != 0:
+        r_session.sadd('global:auto.searcht.cookies', *auto_searcht_accounts)
     r_session.delete('global:auto.getaward.cookies')
-    r_session.sadd('global:auto.getaward.cookies', *auto_getaward_accounts)
+    if len(auto_getaward_accounts) != 0:
+        r_session.sadd('global:auto.getaward.cookies', *auto_getaward_accounts)
 
 # 执行收取水晶函数
 def check_collect(cookies):
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'check_collect')
-    try:
+    if DEBUG_MODE: 
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'check_collect')
+    for b_user in r_session.mget(*['user:%s' % name.decode('utf-8') for name in r_session.smembers('users')]):
+        user_info = json.loads(b_user.decode('utf-8'))
+        if not user_info.get('active'): continue
         mine_info = get_mine_info(cookies)
-        if mine_info.get('r') == 0 and mine_info.get('td_not_in_a') > 18000:
-            time.sleep(1)
-            collect(cookies)
         time.sleep(2)
-    except requests.exceptions.RequestException as e:
-        return
+        if mine_info.get('r') != 0: return
+        if user_info.get('auto_collect_info') is None:
+            l = 1000
+        else:
+            l = user_info.get('auto_collect_info')
+        if mine_info.get('td_not_in_a') > l:
+            collect(cookies)
+        time.sleep(3)
 
 # 执行自动提现的函数
 def check_drawcash(cookies):
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'check_drawcash')
-    try:
-        exec_draw_cash(cookies=cookies, limits=10)
+    if DEBUG_MODE:
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'check_drawcash')
+    for b_user in r_session.mget(*['user:%s' % name.decode('utf-8') for name in r_session.smembers('users')]):
+        user_info = json.loads(b_user.decode('utf-8'))
+        if not user_info.get('active'): continue
+        if user_info.get('auto_drawcash_info') is None:
+            l = 10
+        else:
+            l = user_info.get('auto_drawcash_info')
+        exec_draw_cash(cookies=cookies, limits=l)
         time.sleep(3)
-    except Exception as e:
-        return
 
 # 执行免费宝箱函数
 def check_giftbox(cookies):
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'check_giftbox')
-    try:
-        box_info = api_giftbox(cookies)
-        if box_info is None: return
-        for box in box_info:
-            if box.get('cnum') == 0:
-                api_openStone(cookies=cookies, giftbox_id=box.get('id'), direction='3')
-            else:
-                api_giveUpGift(cookies=cookies, giftbox_id=box.get('id'))
-            time.sleep(1)
-        time.sleep(2)
-    except Exception as e:
-        return
+    if DEBUG_MODE: 
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'check_giftbox')
+    box_info = api_giftbox(cookies)
+    time.sleep(2)
+    if box_info.get('r') != 0: return
+    for box in box_info.get('ci'):
+        if box.get('cnum') == 0:
+            api_openStone(cookies=cookies, giftbox_id=box.get('id'), direction='3')
+        else:
+            api_giveUpGift(cookies=cookies, giftbox_id=box.get('id'))
+    time.sleep(3)
 
 # 执行秘银进攻函数
 def check_searcht(cookies):
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'check_searcht')
-    try:
-        r = api_searcht_steal(cookies)
-        if r.get('r') == 0:
+    if DEBUG_MODE: 
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'check_searcht')
+    t = api_sys_getEntry(cookies)
+    time.sleep(2)
+    if t.get('r') != 0: return
+    if t.get('steal_free') > 0:
+        steal_info = api_steal_search(cookies)
+        if steal_info.get('r') == 0:
+            time.sleep(3)
+            api_steal_collect(cookies=cookies, searcht_id=steal_info.get('sid'))
             time.sleep(1)
-            api_searcht_collect(cookies=cookies, searcht_id=r.get('sid'))
-            time.sleep(2)
-            api_summary_steal(cookies=cookies, searcht_id=r.get('sid'))
-        time.sleep(2)
-    except Exception as e:
-        return
+            api_steal_summary(cookies=cookies, searcht_id=steal_info.get('sid'))
+    time.sleep(3)
 
 # 执行幸运转盘函数
 def check_getaward(cookies):
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'check_getaward')
-    try:
-        r = api_getconfig(cookies)
-        if r.get('rd') == 'ok':
-            if r.get('cost') == 5000:
-                time.sleep(1)
-                api_getaward(cookies)
-        time.sleep(2)
-    except Exception as e:
-        return
+    if DEBUG_MODE: 
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'check_getaward')
+    r = api_getconfig(cookies)
+    if r.get('rd') == 'ok':
+        if r.get('cost') == 5000:
+            time.sleep(2)
+            api_getaward(cookies)
+    time.sleep(3)
 
 # 收取水晶
 def collect_crystal():
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'collect_crystal')
+    if DEBUG_MODE: 
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'collect_crystal')
     for cookie in r_session.smembers('global:auto.collect.cookies'):
         check_collect(json.loads(cookie.decode('utf-8')))
 
@@ -349,31 +380,30 @@ def collect_crystal():
 def drawcash_crystal():
     print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'drawcash_crystal')   
     time_now = datetime.now()
-    if int(time_now.isoweekday()) != 2:        
-        return dict(r='0', rd='提现开放时间为每周二11:00-18:00(国家法定节假日除外)')
-
-    time_hour = time_now.hour
-    if int(time_hour) < 11 or int(time_hour) > 18: 
-        return dict(r='0', rd='提现开放时间为每周二11:00-18:00(国家法定节假日除外)')
+    if int(time_now.isoweekday()) != 2: return
+    if int(time_now.hour) < 11 or int(time_now.hour) > 18: return
 
     for cookie in r_session.smembers('global:auto.drawcash.cookies'):
         check_drawcash(json.loads(cookie.decode('utf-8')))
 
 # 免费宝箱
 def giftbox_crystal():
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'giftbox_crystal')
+    if DEBUG_MODE: 
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'giftbox_crystal')
     for cookie in r_session.smembers('global:auto.giftbox.cookies'):
         check_giftbox(json.loads(cookie.decode('utf-8')))
 
 # 秘银进攻
 def searcht_crystal():
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'searcht_crystal')
+    if DEBUG_MODE: 
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'searcht_crystal')
     for cookie in r_session.smembers('global:auto.searcht.cookies'):
         check_searcht(json.loads(cookie.decode('utf-8')))
 
 # 幸运转盘
 def getaward_crystal():
-    print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'getaward_crystal')
+    if DEBUG_MODE: 
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'getaward_crystal')
     for cookie in r_session.smembers('global:auto.getaward.cookies'):
         check_getaward(json.loads(cookie.decode('utf-8')))
 
@@ -387,28 +417,28 @@ def timer(func, seconds):
 if __name__ == '__main__':
     # 执行收取水晶时间，单位为秒，默认为30秒。
     # 每30分钟检测一次收取水晶
-    threading.Thread(target=timer, args=(collect_crystal, 60*30)).start()
+    threading.Thread(target=timer, args=(collect_crystal, random.randint(60*20, 60*30))).start()
     # 执行自动提现时间，单位为秒，默认为60秒。
     # 每60分钟检测一次自动提现
     threading.Thread(target=timer, args=(drawcash_crystal, 60*60)).start()
     # 执行免费宝箱时间，单位为秒，默认为40秒。
     # 每40分钟检测一次免费宝箱
-    threading.Thread(target=timer, args=(giftbox_crystal, 60*40)).start()
-    # 执行秘银进攻时间，单位为秒，默认为480秒。
-    # 每480分钟检测一次秘银进攻
-    threading.Thread(target=timer, args=(searcht_crystal, 60*60*8)).start()
-    # 执行幸运转盘时间，单位为秒，默认为360秒。
-    # 每360分钟检测一次幸运转盘
-    threading.Thread(target=timer, args=(getaward_crystal, 60*60*6)).start()
-    # 刷新在线用户数据，单位为秒，默认为15秒。
-    # 每15秒刷新一次在线用户数据
-    threading.Thread(target=timer, args=(get_online_user_data, 15)).start()
+    threading.Thread(target=timer, args=(giftbox_crystal, random.randint(60*20, 60*40))).start()
+    # 执行秘银进攻时间，单位为秒，默认为240秒。
+    # 每240分钟检测一次秘银进攻
+    threading.Thread(target=timer, args=(searcht_crystal, 60*60*4)).start()
+    # 执行幸运转盘时间，单位为秒，默认为60秒。
+    # 每60分钟检测一次幸运转盘
+    threading.Thread(target=timer, args=(getaward_crystal, 60*60)).start()
+    # 刷新在线用户数据，单位为秒，默认为30秒。
+    # 每30秒刷新一次在线用户数据
+    threading.Thread(target=timer, args=(get_online_user_data, random.randint(30, 60))).start()
     # 刷新离线用户数据，单位为秒，默认为60秒。
     # 每10分钟刷新一次离线用户数据
-    threading.Thread(target=timer, args=(get_offline_user_data, 60*10)).start()
+    threading.Thread(target=timer, args=(get_offline_user_data, 600)).start()
     # 从在线用户列表中清除离线用户，单位为秒，默认为60秒。
-    # 每分钟检测离线用户
-    threading.Thread(target=timer, args=(clear_offline_user, 60)).start()
+    # 每10分钟检测离线用户
+    threading.Thread(target=timer, args=(clear_offline_user, 60*10)).start()
     # 刷新选择自动任务的用户，单位为秒，默认为10分钟
     threading.Thread(target=timer, args=(select_auto_task_user, 60*10)).start()
     while True:
