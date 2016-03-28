@@ -1,15 +1,16 @@
 #!/bin/bash
-echo 'Start crysadm on'  $(date) >> /tmp/crysadm.txt
+LOG=/var/log/crysadm.log
+echo 'Start crysadm on'  $(date) >> $LOG
 
 sudo pkill redis-server
 sudo pkill python3.4
 
 BASE_DIR="$( cd "$( dirname "$0"  )" && pwd  )"                                                             
-ls ${BASE_DIR}/ >> /tmp/error 2>&1
+ls ${BASE_DIR}/ >> $LOG 2>&1
                                      
-echo $PATH >> /tmp/error           
-echo $LD_LIBRARY_PATH >> /tmp/error                                            
+echo $PATH >> $LOG           
+echo $LD_LIBRARY_PATH >> $LOG                                            
 sudo /etc/init.d/redis-server restart
-sudo redis-server >> /tmp/error 2>&1 &                                              
-sudo python3.4 ${BASE_DIR}/crysadm/crysadm_helper.py >> /tmp/error 2>&1 &
-sudo python3.4 ${BASE_DIR}/crysadm/crysadm.py >> /tmp/error 2>&1 & 
+sudo redis-server >> $LOG 2>&1 &                                              
+sudo python3.4 ${BASE_DIR}/crysadm/crysadm_helper.py >> $LOG 2>&1 &
+sudo python3.4 ${BASE_DIR}/crysadm/crysadm.py >> $LOG 2>&1 & 

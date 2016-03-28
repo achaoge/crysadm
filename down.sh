@@ -1,5 +1,6 @@
 #!/bin/bash
-echo 'Stop crysadm on'  $(date) >> /tmp/crysadm.txt
+LOG=/var/log/crysadm.log
+echo 'Stop crysadm on'  $(date) >> $LOG
 
 sudo pkill redis-server
 sudo pkill python3.4
