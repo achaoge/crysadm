@@ -337,7 +337,7 @@ def check_giftbox(cookies):
     if box_info.get('r') != 0: return
     for box in box_info.get('ci'):
         if box.get('cnum') == 0:
-            api_openStone(cookies=cookies, giftbox_id=box.get('id'), direction='3')
+            api_openStone(cookies=cookies, giftbox_id=box.get('id'), direction='1')
         else:
             api_giveUpGift(cookies=cookies, giftbox_id=box.get('id'))
     time.sleep(3)
