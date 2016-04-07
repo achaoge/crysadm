@@ -89,6 +89,11 @@
                                 {% endif %}
                                 </span>
                             </div>
+                            <div class="form-group input-group">
+                                <span class="input-group-addon"><i style="width: 16px;" class="fa fa-group"></i></span>
+                                <input type="text" class="form-control" name="auto_collect_info" placeholder="10000" value="{{ user.auto_collect_info|default('10000') }}" >
+                                <span class="input-group-addon"><span style="text-align:left; width: 90px; display: inline-block;">水晶收取阀值</span></span>
+                            </div>
                         </form>
 
                         <form role="form" action="/admin/change_property/auto_drawcash/{% if user.auto_drawcash %}O{% else %}1{% endif %}/{{ user.username|e }}" method="post">

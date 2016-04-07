@@ -141,6 +141,10 @@ def admin_change_property(field, value, username):
         user_info['auto_column'] = True if value == '1' else False
     elif field == 'auto_collect':
         user_info['auto_collect'] = True if value == '1' else False
+        auto_collect_info = request.values.get('auto_collect_info')
+        r = r"^[1-9]\d*$"
+        if re.match(r,auto_collect_info) is not None:
+            user_info['auto_collect_info'] = int(auto_collect_info)
     elif field == 'auto_drawcash':
         user_info['auto_drawcash'] = True if value == '1' else False
     elif field == 'auto_giftbox':
