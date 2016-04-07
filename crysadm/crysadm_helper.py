@@ -317,7 +317,7 @@ def check_collect(user, cookies):
     mine_info = get_mine_info(cookies)
     time.sleep(2)
     if mine_info.get('r') != 0: return
-    auto_collect_info = user.get("auto_collect_info") ? user.get("auto_collect_info") : 10000
+    auto_collect_info = user.get("auto_collect_info") if user.get("auto_collect_info") else 10000
     if mine_info.get('td_not_in_a') > auto_collect_info :
         r = collect(cookies)
         if r.get('rd') != 'ok':
