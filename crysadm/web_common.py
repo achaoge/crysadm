@@ -70,7 +70,8 @@ def dashboard_data():
             'yesterday_w_pdc': 0,
             'pdc': 0,
             'balance': 0,
-            'giftbox_pdc': 0
+            'giftbox_pdc': 0,
+            'award_income': 0
         }
         return Response(json.dumps(dict(today_data=empty_data)), mimetype='application/json')
 

@@ -156,8 +156,7 @@ def save_history(username):
         today_data['income'] += data.get('income').get('r_h_a')
         today_data['giftbox_pdc'] += data.get('mine_info').get('td_box_pdc')
         today_data.get('produce_stat').append(dict(mid=data.get('privilege').get('mid'), hourly_list=data.get('produce_info').get('hourly_list')))
-        if data.get('award_income') is not None:
-            today_data['award_income'] += getaward_crystal_income(username, user_id.decode('utf-8'))
+        today_data['award_income'] += getaward_crystal_income(username, user_id.decode('utf-8'))
         today_data['pdc'] += today_data['award_income'] 
         for device in data.get('device_info'):
             today_data['last_speed'] += int(int(device.get('dcdn_upload_speed')) / 1024)
@@ -317,6 +316,7 @@ def check_collect(user, cookies):
     mine_info = get_mine_info(cookies)
     time.sleep(2)
     if mine_info.get('r') != 0: return
+    user = json.loads(user.decode("utf-8"))
     auto_collect_info = user.get("auto_collect_info") if user.get("auto_collect_info") else 10000
     if mine_info.get('td_not_in_a') > auto_collect_info :
         r = collect(cookies)
